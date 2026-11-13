@@ -1,0 +1,75 @@
+name: Java PR Quality Gate
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+# Chi cap quyen can thiet cho tung job.
+permissions: {}
+
+jobs:
+  style-review:
+    name: Checkstyle inline review
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Checkout PR source
+        uses: actions/checkout@v7
+
+      - name: Post Checkstyle inline PR comments
+        uses: dbelyaev/action-checkstyle@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          reporter: github-pr-review
+          level: error
+          fail_level: any
+          filter_mode: added
+          checkstyle_config: config/checkstyle/checkstyle.xml
+          checkstyle_version: '10.21.0'
+
+  build-and-test:
+    name: Maven verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout PR source
+        uses: actions/checkout@v7
+
+      - name: Set up JDK 25 and Maven cache
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+          cache-dependency-path: pom.xml
+
+      # verify gom JUnit tests, package, JaCoCo >=80%, Checkstyle.
+      - name: Maven clean verify
+        run: mvn --batch-mode --no-transfer-progress clean verify
+
+      - name: Check generated JAR
+        shell: bash
+        run: |
+          test -s target/mathutils-pr-review-1.0-SNAPSHOT.jar
+          jar tf target/mathutils-pr-review-1.0-SNAPSHOT.jar | grep -q '^com/practice/math/Main.class$'
+
+      - name: Upload JAR
+        uses: actions/upload-artifact@v7
+        with:
+          name: mathutils-pr-review-jar
+          path: target/mathutils-pr-review-1.0-SNAPSHOT.jar
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload JaCoCo report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: mathutils-pr-review-jacoco
+          path: target/site/jacoco/
+          if-no-files-found: warn
+          retention-days: 14
