@@ -13,6 +13,7 @@ public final class MathUtils {
     }
 
     /** Cong hai so nguyen. */
+    int BAD_variable = 0;
     public static int add(int a, int b) {
         int result = a + b;
         LOGGER.info("operation=add a={} b={} result={}", a, b, result);
